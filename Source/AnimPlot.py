@@ -27,25 +27,30 @@ def animate(i):
     print(i)
     cap = ins.query_ascii_values(":FETC?")
     #cap = random.random()
-    ybuf =cap[0]
+    ybuf = (cap[0])
+    #print(cap[0])
+    #print(cap[1])
+
     y.append(ybuf)
     x.append(i*5)
 
-    ubufStr = str(ybuf).replace('.',',')
-    out = str(i*5)+";"+ubufStr+";\n"
+    ubufStr = str(cap[0]).replace('.',',')
+    thetaStr = str(cap[1]).replace('.',',')
+    out = str(i*5).replace('.',',')+";"+ubufStr+";"+thetaStr+";\n"
     fl.write(out)
 
     global max_y
     global min_y
 
     max_y = max(ybuf, max_y)    
-    min_y = max_y if min_y == 0 else min(ybuf, min_y)
-    margine = (max_y - min_y)/20
+    min_y = min(ybuf, min_y)
+    margine = (max_y - min_y)/5
     
     ax.clear()
     ax.plot(x, y, linewidth = 2, color = "Blue")
 
     ax.set_ylim((min(ybuf, min_y) - margine, max(ybuf, max_y) + margine))
+    #ax.set_ylim((0.0000000000001, 0.0000000001))
 
     # display the x-axis ticks with intervals
     ax.xaxis.set_major_locator(mticks.MultipleLocator(len(x) / 10))       
