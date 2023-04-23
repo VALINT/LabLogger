@@ -56,6 +56,9 @@ class Measurement():
     def insertData(self, data):
         self.data.append(data)
 
+    def removeData(self):
+        self.data.pop()
+
     def getName(self):
         return self.name
 
@@ -143,6 +146,7 @@ class MainWindow(QWidget):
         self.timeDelay = 5000
         self.x = []
         self.y = []
+        self.z = []
         self.manx = []
         self.many = []
         self.plotSensorNum = 0
@@ -365,7 +369,7 @@ class MainWindow(QWidget):
         self.LabelTime.setText(str(float(self.timeDelay)/1000))
         self.LabelTime.editingFinished.connect(self.measTimeLabelUpdate)
         self.LabelFile = QLineEdit(self)
-        self.LabelFile.setText("Experiment_"+str(date.today())+"_"+self.now.strftime("%H-%M-%S")+".csv")
+        self.LabelFile.setText("plot_"+str(date.today())+"_"+self.now.strftime("%H-%M-%S"))
 
         plotterRunLay.setColumnMinimumWidth(50,40)
         plotterRunLay.setRowMinimumHeight(50,30)
@@ -385,9 +389,6 @@ class MainWindow(QWidget):
 
         self.expCanvas = MplCanvas(self, width=9, height=5, dpi=100)
         self.expToolbar = NavigationToolbar(self.expCanvas, self)
-
-        #self.scriptFile = QLineEdit(self)
-        #self.scriptFile.setText("")
 
         self.readButton = QPushButton("Read script", self)
         self.readButton.clicked.connect(self.readExperiment)
@@ -409,7 +410,7 @@ class MainWindow(QWidget):
         self.decSensNum = QPushButton("Prev", self)
         self.decSensNum.clicked.connect(self.decNum)
         self.clearLastMeas = QPushButton("Clear last", self)
-        #self.clearLastMeas.clicked.connect(self.clearMeas)
+        self.clearLastMeas.clicked.connect(self.removeLast)
 
         self.cbOpenScript = QComboBox(self)
         self.cbSensor = QComboBox(self)
@@ -635,7 +636,6 @@ class MainWindow(QWidget):
             self.measExpSensorCursor = (len(self.measExp.experiment) - 1)
             print("Sensor removed")
 
-
     def AddMeas(self):
         l = len(self.measExp.experiment)
         if(l == 0): 
@@ -697,6 +697,19 @@ class MainWindow(QWidget):
             a = self.instrument.query(":APER SLOW")
         print(a)
 
+    def removeLast(self):
+        if(len(self.measExp.experiment) == 0):
+            return
+        i = self.measExp.experiment[self.measSensorNum-1]
+        for j in i.sensor:
+            if(len(j.measurements) == 0):
+                return
+            for k in j.measurements :
+                if(len(k.data) == 0):
+                    return
+                k.removeData()
+        self.buildPlot()
+
     def measureBurst(self):
         00000000000000000000000000000000
         measLine = []
@@ -751,6 +764,7 @@ class MainWindow(QWidget):
         measLine = []
 
         i = self.measExp.experiment[self.measSensorNum-1]
+        measLine += i.name + " "
         for j in i.sensor:
             self.instrument.query(j.call)  #(":FUNC:IMP:A C")
             for k in j.measurements :
@@ -777,6 +791,7 @@ class MainWindow(QWidget):
         measLine = []
 
         i = self.measExp.experiment[self.measSensorNum-1]
+        measLine += i.name + " "
         for j in i.sensor:
             #self.instrument.query(j.call)  #(":FUNC:IMP:A C")
             for k in j.measurements :
@@ -801,7 +816,23 @@ class MainWindow(QWidget):
         self.buildManual()
 
     def saveCSV(self):
-        print("OK")
+        name = self.LabelFile.text()
+        row = 2
+        column = 0
+        if name == "":
+            name = "plot_" +str(date.today())+"_"+self.now.strftime("%H:%M:%S")
+        name = (name.split('.'))[0]
+
+        workbook = xlsxwriter.Workbook("./Results/"+name+'.xlsx')
+        worksheet = workbook.add_worksheet()
+        for i in range (0, len(self.y)-1):
+            worksheet.write(row, 0, self.x[i])
+            worksheet.write(row, 1, self.y[i])
+            worksheet.write(row, 2, self.z[i])
+            row += 1
+            
+        workbook.close()
+        print(name)
 
     def ListSelectedItem(self):
         a = self.listDevices.currentItem()
@@ -856,6 +887,7 @@ class MainWindow(QWidget):
         if(self.running == False): return
     
         #self.y.append(random.random())
+        '''
         for i in self.measExp.experiment:
             if(i.name not in self.measData): self.measData.update({i.name:{}})
             if len(self.measExp.experiment) > 1:
@@ -867,18 +899,25 @@ class MainWindow(QWidget):
                 print(j)
                 a = self.instrument.query(j.call)
                 print(j.call)
-                time.sleep(500/1000)
+                #time.sleep(500/1000)
                 b = self.instrument.query_ascii_values(j.fetch)
-                time.sleep(500/1000)
+                #time.sleep(500/1000)
                 print(j.fetch)
                 print("Data = ", b)
                 
                 self.measData[i.name][j.name].append(b[0])
-
+        '''
+        a,b = self.instrument.query_ascii_values(j.fetch)
+        #a = random.random()
+        #b = random.random()
+        
         if(len(self.x) == 0):
             self.x.append(0)
         else:
             self.x.append(self.x[len(self.x)-1]+self.timeDelay/1000)
+        
+        self.y.append(a)
+        self.z.append(b)
 
         if(self.PPause): return
 
@@ -887,16 +926,13 @@ class MainWindow(QWidget):
         self.ydata = self.ydata
         self.canvas.axes.cla()  # Clear the canvas.
         
-        for i in self.measData:
-            for j in self.measData[i]:
-                self.canvas.axes.plot(self.x, self.measData[i][j], 'm')
+        self.canvas.axes.plot(self.x, self.y, 'm')
 
         self.canvas.axes.xaxis.label.set_text("S")
         self.canvas.axes.yaxis.label.set_text("Capacitance, F")
         #self.toolbar = NavigationToolbar(self.canvas, self)
         # Trigger the canvas to update and redraw.
         self.canvas.draw()
-
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
